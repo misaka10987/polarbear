@@ -1,4 +1,5 @@
 mod clock;
+mod panel;
 
 use std::{
     fs,
@@ -9,16 +10,14 @@ use std::{
 use clap::Parser;
 use clock::Clock;
 use dirs::config_dir;
-use iced::{
-    Alignment, Color, Element, Font, Length, Pixels, Task, Theme, time,
-    widget::{container, row, text},
-};
+use iced::{Color, Element, Font, Pixels, Task, Theme, time};
 use iced_layershell::{
     Appearance, Application,
     reexport::Anchor,
     settings::{LayerShellSettings, Settings},
     to_layer_message,
 };
+use panel::Panel;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
 
@@ -61,12 +60,14 @@ impl PolarBear {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Config {
+    pub tick_period: u64,
     pub clock: clock::Config,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
+            tick_period: 500,
             clock: Default::default(),
         }
     }
@@ -97,77 +98,52 @@ fn start(cfg: Config) -> anyhow::Result<()> {
         default_text_size: Pixels(16.0),
         virtual_keyboard_support: None,
     };
-    Panel::run(settings)?;
+    App::run(settings)?;
     Ok(())
 }
 
-struct Panel {
-    clock: Clock,
+struct App {
+    pub cfg: Config,
+    panel: Panel,
 }
 
 #[to_layer_message]
-#[derive(Debug, Clone)]
-enum Message {
-    Tick,
+#[derive(Clone, Debug)]
+enum AppMessage {
+    Only(panel::Message),
 }
 
-impl Application for Panel {
-    type Message = Message;
+impl Application for App {
+    type Message = AppMessage;
     type Flags = Config;
     type Theme = Theme;
     type Executor = iced::executor::Default;
 
-    fn new(flags: Self::Flags) -> (Self, Task<Message>) {
-        (
-            Self {
-                clock: Clock::new(flags.clock.clone()),
-            },
-            Task::none(),
-        )
+    fn new(cfg: Self::Flags) -> (Self, Task<AppMessage>) {
+        let clock = Clock::new(cfg.clock.clone());
+        let panel = Panel::new(clock);
+        (Self { cfg, panel }, Task::none())
     }
 
     fn namespace(&self) -> String {
         "Polar Bears' Panel".into()
     }
 
-    fn update(&mut self, message: Message) -> Task<Message> {
-        match message {
-            Message::Tick => {
-                self.clock.update();
-                Task::none()
-            }
-            _ => unreachable!(),
-        }
+    fn update(&mut self, message: AppMessage) -> Task<AppMessage> {
+        let AppMessage::Only(msg) = message else {
+            unreachable!()
+        };
+        self.panel.update(msg);
+        Task::none()
     }
 
-    fn view(&self) -> Element<Message> {
-        row![
-            container(text("Polar bears are soluble"))
-                .align_x(Alignment::Start)
-                .align_y(Alignment::Center)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .padding(2),
-            container(text("Polar bears are soluble"))
-                .align_x(Alignment::Center)
-                .align_y(Alignment::Center)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .padding(2),
-            container(self.clock.view())
-                .align_x(Alignment::End)
-                .align_y(Alignment::Center)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .padding(2),
-        ]
-        .align_y(Alignment::Center)
-        .padding(2)
-        .into()
+    fn view(&self) -> Element<AppMessage> {
+        self.panel.view().map(AppMessage::Only)
     }
 
     fn subscription(&self) -> iced::Subscription<Self::Message> {
-        time::every(Duration::from_millis(500)).map(|_| Message::Tick)
+        time::every(Duration::from_millis(self.cfg.tick_period))
+            .map(|_| AppMessage::Only(panel::Message::Tick))
     }
 
     fn style(&self, _: &Self::Theme) -> Appearance {

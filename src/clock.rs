@@ -26,8 +26,7 @@ impl Clock {
     pub fn new(cfg: Config) -> Self {
         Self { cfg }
     }
-    pub fn update(&mut self) {}
-    pub fn view<'a, T: 'a>(&self) -> Element<'a, T> {
+    pub fn view<T>(&self) -> Element<T> {
         let time = Local::now();
         let time = time.format(&self.cfg.format);
         text(time.to_string()).into()
