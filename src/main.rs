@@ -1,11 +1,16 @@
 mod clock;
 
-use std::time::Duration;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use clap::Parser;
 use clock::Clock;
+use dirs::config_dir;
 use iced::{
-    Alignment, Color, Element, Length, Task, Theme, time,
+    Alignment, Color, Element, Font, Length, Pixels, Task, Theme, time,
     widget::{container, row, text},
 };
 use iced_layershell::{
@@ -14,14 +19,68 @@ use iced_layershell::{
     settings::{LayerShellSettings, Settings},
     to_layer_message,
 };
+use serde::{Deserialize, Serialize};
+use tracing::{debug, warn};
 
 #[derive(Parser)]
 #[command(version)]
-struct Args {}
+struct PolarBear {
+    #[arg(short, long)]
+    pub config: Option<PathBuf>,
+}
+
+impl PolarBear {
+    pub fn try_load_config(&self) -> Config {
+        fn load_config(path: impl AsRef<Path>) -> anyhow::Result<Config> {
+            let file = fs::read_to_string(path)?;
+            let val = toml::from_str(&file)?;
+            Ok(val)
+        }
+        let mut attempts: Vec<PathBuf> = vec![];
+        if let Some(path) = &self.config {
+            attempts.push(path.clone());
+        }
+        if let Some(dir) = config_dir() {
+            attempts.push(dir.join("polarbear").join("config.toml"));
+            attempts.push(dir.join("polarbear.toml"));
+        }
+        for attempt in attempts {
+            let res = load_config(&attempt);
+            match res {
+                Ok(cfg) => {
+                    debug!("loaded config at {attempt:?} : {cfg:?}");
+                    return cfg;
+                }
+                Err(e) => debug!("load config at {attempt:?} failed: {e}"),
+            }
+        }
+        warn!("all attempts to load config failed, using default");
+        Default::default()
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct Config {
+    pub clock: clock::Config,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            clock: Default::default(),
+        }
+    }
+}
 
 fn main() -> anyhow::Result<()> {
-    Args::parse();
+    let args = PolarBear::parse();
     tracing_subscriber::fmt().init();
+    let cfg = args.try_load_config();
+    start(cfg)?;
+    Ok(())
+}
+
+fn start(cfg: Config) -> anyhow::Result<()> {
     let layershell = LayerShellSettings {
         size: Some((0, 32)),
         exclusive_zone: 32,
@@ -29,9 +88,14 @@ fn main() -> anyhow::Result<()> {
         ..Default::default()
     };
     let settings = Settings {
+        flags: cfg,
         layer_settings: layershell,
         antialiasing: true,
-        ..Default::default()
+        id: None,
+        fonts: Vec::new(),
+        default_font: Font::default(),
+        default_text_size: Pixels(16.0),
+        virtual_keyboard_support: None,
     };
     Panel::run(settings)?;
     Ok(())
@@ -49,14 +113,14 @@ enum Message {
 
 impl Application for Panel {
     type Message = Message;
-    type Flags = ();
+    type Flags = Config;
     type Theme = Theme;
     type Executor = iced::executor::Default;
 
-    fn new(_flags: ()) -> (Self, Task<Message>) {
+    fn new(flags: Self::Flags) -> (Self, Task<Message>) {
         (
             Self {
-                clock: Clock::new(),
+                clock: Clock::new(flags.clock.clone()),
             },
             Task::none(),
         )
