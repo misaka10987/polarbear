@@ -1,9 +1,11 @@
 mod clock;
 mod panel;
+mod power;
 
 use std::{
-    fs,
+    fs, io,
     path::{Path, PathBuf},
+    process::{Command, Output},
     time::Duration,
 };
 
@@ -18,8 +20,13 @@ use iced_layershell::{
     to_layer_message,
 };
 use panel::Panel;
+use power::Power;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
+
+fn run(shell_cmd: &str) -> io::Result<Output> {
+    Command::new("sh").arg("-c").arg(shell_cmd).output()
+}
 
 #[derive(Parser)]
 #[command(version)]
@@ -62,6 +69,7 @@ impl PolarBear {
 struct Config {
     pub tick_period: u64,
     pub clock: clock::Config,
+    pub power: power::Config,
 }
 
 impl Default for Config {
@@ -69,6 +77,7 @@ impl Default for Config {
         Self {
             tick_period: 500,
             clock: Default::default(),
+            power: Default::default(),
         }
     }
 }
@@ -121,7 +130,8 @@ impl Application for App {
 
     fn new(cfg: Self::Flags) -> (Self, Task<AppMessage>) {
         let clock = Clock::new(cfg.clock.clone());
-        let panel = Panel::new(clock);
+        let power = Power::new(cfg.power.clone());
+        let panel = Panel::new(clock, power);
         (Self { cfg, panel }, Task::none())
     }
 

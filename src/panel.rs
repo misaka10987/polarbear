@@ -1,4 +1,7 @@
-use crate::clock::Clock;
+use crate::{
+    clock::Clock,
+    power::{self, Power},
+};
 use iced::{
     Alignment, Element, Length,
     widget::{container, row, text},
@@ -6,19 +9,26 @@ use iced::{
 
 pub struct Panel {
     clock: Clock,
+    power: Power,
 }
 
 #[derive(Clone, Debug)]
 pub enum Message {
     Tick,
+    Power(power::Message),
 }
 
 impl Panel {
-    pub fn new(clock: Clock) -> Self {
-        Self { clock }
+    pub fn new(clock: Clock, power: Power) -> Self {
+        Self { clock, power }
     }
 
-    pub fn update(&mut self, _: Message) {}
+    pub fn update(&mut self, message: Message) {
+        match message {
+            Message::Tick => {}
+            Message::Power(msg) => self.power.update(msg),
+        }
+    }
 
     pub fn view(&self) -> Element<Message> {
         row![
@@ -34,7 +44,7 @@ impl Panel {
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .padding(2),
-            container(self.clock.view())
+            container(row![self.clock.view(), self.power.view().map(Message::Power)].spacing(4))
                 .align_x(Alignment::End)
                 .align_y(Alignment::Center)
                 .width(Length::Fill)
