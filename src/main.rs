@@ -1,3 +1,4 @@
+use clap::Parser;
 use iced::{
     Alignment, Color, Element, Length, Task, Theme,
     widget::{container, text},
@@ -9,7 +10,13 @@ use iced_layershell::{
     to_layer_message,
 };
 
+#[derive(Parser)]
+#[command(version)]
+struct Args {}
+
 fn main() -> anyhow::Result<()> {
+    Args::parse();
+    tracing_subscriber::fmt().init();
     let layershell = LayerShellSettings {
         size: Some((0, 32)),
         exclusive_zone: 32,
