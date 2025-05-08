@@ -1,0 +1,11 @@
+[package]
+name = "polarbear"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.98"
+clap = "4.5.37"
+iced = "0.13.1"
+iced_layershell = "0.13.5"
+tracing-subscriber = "0.3.19"
