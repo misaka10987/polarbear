@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::bail;
 use iced::{
     Border, Color, Element, Shadow,
     widget::{Svg, button, row, svg},
@@ -11,13 +11,13 @@ use crate::run;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
-    pub logout: LogoutCommand,
+    pub action: Action,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            logout: LogoutCommand::KDE6,
+            action: Action::KDE6,
         }
     }
 }
@@ -42,8 +42,10 @@ impl Power {
     pub fn update(&mut self, message: Message) {
         dbg!(&message);
         let res = match message {
-            Message::Logout => self.cfg.logout.run(),
-            _ => Err(anyhow!("unimplemented")),
+            Message::Logout => self.cfg.action.logout(),
+            Message::Hibernate => self.cfg.action.hibernate(),
+            Message::Poweroff => self.cfg.action.poweroff(),
+            Message::Reboot => self.cfg.action.reboot(),
         };
         if let Err(e) = res {
             error!("{e}");
@@ -87,14 +89,31 @@ impl Power {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum LogoutCommand {
+pub enum Action {
     #[serde(rename = "command")]
-    Custom(String),
+    Custom {
+        logout: String,
+        hibernate: String,
+        poweroff: String,
+        reboot: String,
+    },
     KDE6,
 }
 
-impl LogoutCommand {
-    pub fn run(&self) -> anyhow::Result<()> {
+impl Action {
+    pub fn hibernate(&self) -> anyhow::Result<()> {
+        bail!("unimplemented")
+    }
+
+    pub fn poweroff(&self) -> anyhow::Result<()> {
+        bail!("unimplemented")
+    }
+
+    pub fn reboot(&self) -> anyhow::Result<()> {
+        bail!("unimplemented")
+    }
+
+    pub fn logout(&self) -> anyhow::Result<()> {
         let confirm = MessageDialogBuilder::default()
             .set_title("Logout - Polarbear")
             .set_text("Confirm to logout?")
@@ -104,8 +123,8 @@ impl LogoutCommand {
             return Ok(());
         }
         let cmd = match self {
-            LogoutCommand::Custom(x) => x,
-            LogoutCommand::KDE6 => "qdbus6 org.kde.Shutdown /Shutdown logout",
+            Action::Custom { logout, .. } => &logout,
+            Action::KDE6 => "qdbus6 org.kde.Shutdown /Shutdown logout",
         };
         run(cmd)?;
         Ok(())
