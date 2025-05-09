@@ -1,4 +1,5 @@
 mod clock;
+mod cmd;
 mod panel;
 mod power;
 
@@ -13,6 +14,7 @@ use std::{
 
 use clap::Parser;
 use clock::Clock;
+use cmd::SubCommand;
 use dirs::config_dir;
 use iced::{Color, Element, Font, Pixels, Task, Theme, time};
 use iced_layershell::{
@@ -30,11 +32,27 @@ fn run(shell_cmd: &str) -> io::Result<Output> {
     Command::new("sh").arg("-c").arg(shell_cmd).output()
 }
 
+/// Polar bears' panel for wayland.
 #[derive(Parser)]
 #[command(version)]
 struct PolarBear {
+    /// Path to the configuration file.
+    ///
+    /// If not speficied, would look up sequentially the following paths:
+    ///
+    /// - `$XDG_CONFIG_HOME/polarbear/config.toml`
+    ///
+    /// - `$XDG_CONFIG_HOME/polarbear.toml`
+    ///
+    /// If environment `$XDG_CONFIG_HOME` is not specified,
+    /// would use `$HOME/.config` instead.
     #[arg(short, long)]
     pub config: Option<PathBuf>,
+    /// CLI command to run with.
+    ///
+    /// If not specified, launch the panel.
+    #[command(subcommand)]
+    pub cmd: Option<SubCommand>,
 }
 
 impl PolarBear {
@@ -86,6 +104,9 @@ impl Default for Config {
 
 fn main() -> anyhow::Result<()> {
     let args = PolarBear::parse();
+    if let Some(cmd) = &args.cmd {
+        return cmd.run();
+    }
     tracing_subscriber::fmt().init();
     let cfg = args.try_load_config();
     start(cfg)?;
