@@ -1,3 +1,4 @@
+mod battery;
 mod clock;
 mod cmd;
 mod panel;
@@ -12,6 +13,7 @@ use std::{
     time::Duration,
 };
 
+use battery::Battery;
 use clap::Parser;
 use clock::Clock;
 use cmd::SubCommand;
@@ -88,8 +90,12 @@ impl PolarBear {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Config {
     pub tick_period: u64,
+    #[serde(default)]
     pub clock: clock::Config,
+    #[serde(default)]
     pub power: power::Config,
+    #[serde(default)]
+    pub battery: battery::Config,
 }
 
 impl Default for Config {
@@ -98,6 +104,7 @@ impl Default for Config {
             tick_period: 500,
             clock: Default::default(),
             power: Default::default(),
+            battery: Default::default(),
         }
     }
 }
@@ -165,7 +172,8 @@ impl Application for App {
     fn new(cfg: Self::Flags) -> (Self, Task<AppMessage>) {
         let clock = Clock::new(cfg.clock.clone());
         let power = Power::new(cfg.power.clone());
-        let panel = Panel::new(clock, power);
+        let battery = Battery::new(cfg.battery.clone());
+        let panel = Panel::new(clock, power, battery);
         (Self(Arc::new(AppInner { cfg, panel })), Task::none())
     }
 

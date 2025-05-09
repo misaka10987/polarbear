@@ -1,4 +1,5 @@
 use crate::{
+    battery::Battery,
     clock::Clock,
     power::{self, Power},
 };
@@ -8,6 +9,7 @@ use iced::{
 };
 
 pub struct Panel {
+    battery: Battery,
     clock: Clock,
     power: Power,
 }
@@ -19,8 +21,12 @@ pub enum Message {
 }
 
 impl Panel {
-    pub fn new(clock: Clock, power: Power) -> Self {
-        Self { clock, power }
+    pub fn new(clock: Clock, power: Power, battery: Battery) -> Self {
+        Self {
+            clock,
+            power,
+            battery,
+        }
     }
 
     pub async fn update(&self, message: Message) {
@@ -44,12 +50,19 @@ impl Panel {
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .padding(2),
-            container(row![self.clock.view(), self.power.view().map(Message::Power)].spacing(4))
-                .align_x(Alignment::End)
-                .align_y(Alignment::Center)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .padding(2),
+            container(
+                row![
+                    self.battery.view(),
+                    self.clock.view(),
+                    self.power.view().map(Message::Power)
+                ]
+                .spacing(8)
+            )
+            .align_x(Alignment::End)
+            .align_y(Alignment::Center)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .padding(2),
         ]
         .align_y(Alignment::Center)
         .padding(2)
