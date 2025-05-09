@@ -17,7 +17,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            action: Action::KDE6,
+            action: Default::default(),
         }
     }
 }
@@ -39,16 +39,15 @@ impl Power {
         Self { cfg }
     }
 
-    pub fn update(&mut self, message: Message) {
-        dbg!(&message);
-        let res = match message {
-            Message::Logout => self.cfg.action.logout(),
-            Message::Hibernate => self.cfg.action.hibernate(),
-            Message::Poweroff => self.cfg.action.poweroff(),
-            Message::Reboot => self.cfg.action.reboot(),
+    pub async fn update(&self, message: Message) {
+        let res = match &message {
+            Message::Logout => self.cfg.action.logout().await,
+            Message::Hibernate => self.cfg.action.hibernate().await,
+            Message::Poweroff => self.cfg.action.poweroff().await,
+            Message::Reboot => self.cfg.action.reboot().await,
         };
         if let Err(e) = res {
-            error!("{e}");
+            error!("failed to handle {message:?}: {e}");
         }
     }
 
@@ -100,26 +99,47 @@ pub enum Action {
     KDE6,
 }
 
+async fn confirm(title: &str, text: &str) -> anyhow::Result<bool> {
+    let confirm = MessageDialogBuilder::default()
+        .set_title(title)
+        .set_text(text)
+        .confirm()
+        .spawn()
+        .await?;
+    Ok(confirm)
+}
+
 impl Action {
-    pub fn hibernate(&self) -> anyhow::Result<()> {
+    pub async fn hibernate(&self) -> anyhow::Result<()> {
         bail!("unimplemented")
     }
 
-    pub fn poweroff(&self) -> anyhow::Result<()> {
-        bail!("unimplemented")
+    pub async fn poweroff(&self) -> anyhow::Result<()> {
+        if !confirm("Poweroff - Polarbear", "Confirm to poweroff?").await? {
+            return Ok(());
+        }
+        let cmd = match self {
+            Action::Custom { logout, .. } => &logout,
+            Action::KDE6 => "qdbus6 org.kde.Shutdown /Shutdown logoutAndShutdown",
+        };
+        run(cmd)?;
+        Ok(())
     }
 
-    pub fn reboot(&self) -> anyhow::Result<()> {
-        bail!("unimplemented")
+    pub async fn reboot(&self) -> anyhow::Result<()> {
+        if !confirm("Reboot - Polarbear", "Confirm to reboot?").await? {
+            return Ok(());
+        }
+        let cmd = match self {
+            Action::Custom { logout, .. } => &logout,
+            Action::KDE6 => "qdbus6 org.kde.Shutdown /Shutdown logoutAndReboot",
+        };
+        run(cmd)?;
+        Ok(())
     }
 
-    pub fn logout(&self) -> anyhow::Result<()> {
-        let confirm = MessageDialogBuilder::default()
-            .set_title("Logout - Polarbear")
-            .set_text("Confirm to logout?")
-            .confirm()
-            .show()?;
-        if !confirm {
+    pub async fn logout(&self) -> anyhow::Result<()> {
+        if !confirm("Logout - Polarbear", "Confirm to logout?").await? {
             return Ok(());
         }
         let cmd = match self {
@@ -128,5 +148,11 @@ impl Action {
         };
         run(cmd)?;
         Ok(())
+    }
+}
+
+impl Default for Action {
+    fn default() -> Self {
+        Self::KDE6
     }
 }

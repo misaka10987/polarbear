@@ -23,10 +23,10 @@ impl Panel {
         Self { clock, power }
     }
 
-    pub fn update(&mut self, message: Message) {
+    pub async fn update(&self, message: Message) {
         match message {
             Message::Tick => {}
-            Message::Power(msg) => self.power.update(msg),
+            Message::Power(msg) => self.power.update(msg).await,
         }
     }
 

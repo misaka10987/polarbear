@@ -4,8 +4,10 @@ mod power;
 
 use std::{
     fs, io,
+    ops::Deref,
     path::{Path, PathBuf},
     process::{Command, Output},
+    sync::Arc,
     time::Duration,
 };
 
@@ -111,9 +113,20 @@ fn start(cfg: Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-struct App {
+struct AppInner {
     pub cfg: Config,
     panel: Panel,
+}
+
+#[derive(Clone)]
+struct App(Arc<AppInner>);
+
+impl Deref for App {
+    type Target = AppInner;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 #[to_layer_message]
@@ -132,7 +145,7 @@ impl Application for App {
         let clock = Clock::new(cfg.clock.clone());
         let power = Power::new(cfg.power.clone());
         let panel = Panel::new(clock, power);
-        (Self { cfg, panel }, Task::none())
+        (Self(Arc::new(AppInner { cfg, panel })), Task::none())
     }
 
     fn namespace(&self) -> String {
@@ -143,8 +156,11 @@ impl Application for App {
         let AppMessage::Only(msg) = message else {
             unreachable!()
         };
-        self.panel.update(msg);
-        Task::none()
+        let app = self.clone();
+        let fut = async move {
+            app.panel.update(msg).await;
+        };
+        Task::future(fut).discard()
     }
 
     fn view(&self) -> Element<AppMessage> {
