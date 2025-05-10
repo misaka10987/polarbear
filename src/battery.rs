@@ -27,9 +27,14 @@ pub struct Battery {
 
 impl Battery {
     pub fn new(cfg: Config) -> Self {
-        let manager = Manager::new().inspect_err(|e| error!("{e}")).ok();
+        let manager = if cfg.enable {
+            Manager::new().inspect_err(|e| error!("{e}")).ok()
+        } else {
+            None
+        };
         Self { cfg, manager }
     }
+
     pub fn try_view<T: 'static>(&self) -> anyhow::Result<Element<T>> {
         if !self.cfg.enable {
             return Ok(row![].into());
@@ -80,6 +85,7 @@ impl Battery {
         }
         Ok(row(rendered).into())
     }
+
     pub fn view<T: 'static>(&self) -> Element<T> {
         self.try_view().unwrap_or_else(|e| {
             error!("failed to display battery: {e}");

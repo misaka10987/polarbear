@@ -28,6 +28,7 @@ use iced_layershell::{
 use panel::Panel;
 use power::Power;
 use serde::{Deserialize, Serialize};
+use serde_inline_default::serde_inline_default;
 use tracing::{debug, warn};
 
 fn run(shell_cmd: &str) -> io::Result<Output> {
@@ -87,9 +88,17 @@ impl PolarBear {
     }
 }
 
+#[serde_inline_default]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Config {
+    #[serde_inline_default(500)]
     pub tick_period: u64,
+    #[serde_inline_default(Color::BLACK)]
+    #[serde(with = "color_serde")]
+    pub background: Color,
+    #[serde_inline_default(Color::BLACK)]
+    #[serde(with = "color_serde")]
+    pub foreground: Color,
     #[serde(default)]
     pub clock: clock::Config,
     #[serde(default)]
@@ -102,6 +111,8 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             tick_period: 500,
+            background: Color::BLACK,
+            foreground: Color::WHITE,
             clock: Default::default(),
             power: Default::default(),
             battery: Default::default(),
@@ -203,8 +214,38 @@ impl Application for App {
 
     fn style(&self, _: &Self::Theme) -> Appearance {
         Appearance {
-            background_color: Color::BLACK,
-            text_color: Color::WHITE,
+            background_color: self.cfg.background,
+            text_color: self.cfg.foreground,
         }
+    }
+}
+
+mod color_serde {
+    use iced::Color;
+    use serde::{Deserialize, Deserializer, Serializer, de::Error};
+
+    pub fn serialize<S>(color: &Color, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let [r, g, b, a] = color.into_rgba8();
+        let formatted = if color.a == 1.0 {
+            format!("#{r:02x}{g:02x}{b:02x}")
+        } else {
+            format!("#{r:02x}{g:02x}{b:02x}{a:02x}")
+        };
+        serializer.serialize_str(&formatted)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Color, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let hex = String::deserialize(deserializer)?;
+        let color = Color::parse(&hex).ok_or(D::Error::invalid_value(
+            serde::de::Unexpected::Str(&hex),
+            &"an RGB hexadecimal color string, e.g. '#123456'",
+        ))?;
+        Ok(color)
     }
 }

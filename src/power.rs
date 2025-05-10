@@ -5,18 +5,24 @@ use iced::{
 };
 use native_dialog::MessageDialogBuilder;
 use serde::{Deserialize, Serialize};
+use serde_inline_default::serde_inline_default;
 use tracing::error;
 
 use crate::run;
 
+#[serde_inline_default]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
+    #[serde_inline_default(true)]
+    pub enable: bool,
+    #[serde(default)]
     pub action: Action,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
+            enable: true,
             action: Default::default(),
         }
     }
@@ -52,10 +58,14 @@ impl Power {
     }
 
     pub fn view(&self) -> Element<Message> {
-        static HIBERNATE: &'static [u8] = include_bytes!("../assets/hibernate.svg");
-        static LOGOUT: &'static [u8] = include_bytes!("../assets/logout.svg");
-        static POWEROFF: &'static [u8] = include_bytes!("../assets/poweroff.svg");
-        static REBOOT: &'static [u8] = include_bytes!("../assets/reboot.svg");
+        static HIBERNATE: &[u8] = include_bytes!("../assets/hibernate.svg");
+        static LOGOUT: &[u8] = include_bytes!("../assets/logout.svg");
+        static POWEROFF: &[u8] = include_bytes!("../assets/poweroff.svg");
+        static REBOOT: &[u8] = include_bytes!("../assets/reboot.svg");
+
+        if !self.cfg.enable {
+            return row![].into();
+        }
 
         fn item(icon: &'static [u8], action: Message) -> Element<'static, Message> {
             let logout = Svg::new(svg::Handle::from_memory(icon))
@@ -115,7 +125,7 @@ impl Action {
     }
 
     pub async fn poweroff(&self) -> anyhow::Result<()> {
-        if !confirm("Poweroff - Polarbear", "Confirm to poweroff?").await? {
+        if !confirm("Poweroff - Polarbear", "Confirm poweroff?").await? {
             return Ok(());
         }
         let cmd = match self {
@@ -127,7 +137,7 @@ impl Action {
     }
 
     pub async fn reboot(&self) -> anyhow::Result<()> {
-        if !confirm("Reboot - Polarbear", "Confirm to reboot?").await? {
+        if !confirm("Reboot - Polarbear", "Confirm reboot?").await? {
             return Ok(());
         }
         let cmd = match self {
@@ -139,7 +149,7 @@ impl Action {
     }
 
     pub async fn logout(&self) -> anyhow::Result<()> {
-        if !confirm("Logout - Polarbear", "Confirm to logout?").await? {
+        if !confirm("Logout - Polarbear", "Confirm logout?").await? {
             return Ok(());
         }
         let cmd = match self {
